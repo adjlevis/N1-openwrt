@@ -1,0 +1,60 @@
+name: Build ImmortalWrt Docker Image
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 16 1 * *' # 每月1号 00:00（北京时间）
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Show Docker version
+        run: docker version
+
+      - name: Run Docker build
+        run: |
+          cd immortalwrt
+          chmod +x build.sh docker-build.sh
+          ./docker-build.sh
+
+      - name: Package artifacts
+        run: |
+          mkdir -p output
+          cp -r immortalwrt/bin/* output/ || true
+          echo "Build finished at $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" > output/build_time.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-build
+          path: output/
+
+      - name: Delete old releases
+        uses: dev-drprasad/delete-older-releases@v0.3.3
+        with:
+          keep_latest: 1
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: release-${{ github.run_number }}
+          name: "ImmortalWrt Build #${{ github.run_number }} - $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')"
+          body: |
+            Automated build of ImmortalWrt image.
+            - Build time (Beijing): $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+            - Workflow run: ${{ github.run_id }}
+          files: |
+            output/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
