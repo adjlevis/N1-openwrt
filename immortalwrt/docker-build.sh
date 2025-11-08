@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# 放宽权限
+# 放宽权限，避免 Permission denied
 chmod -R 777 "$(pwd)"
 
 docker run --rm \
@@ -10,5 +10,5 @@ docker run --rm \
   -v "$(pwd)/bin:/home/build/bin" \
   --workdir /home/build \
   --user root \
-  immortalwrt/imagebuilder:layerscape-armv8_64b-openwrt-24.10 \
+  immortalwrt/imagebuilder:armsr-armv8-openwrt-24.10 \
   bash build.sh
