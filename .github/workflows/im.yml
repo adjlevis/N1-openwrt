@@ -1,73 +1,81 @@
-name: Build ImmortalWrt Docker Image
+name: Onecloud ImmortalWRT docker Build 
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
-  schedule:
-    - cron: '0 16 1 * *' # 每月1号 北京时间 00:00 自动运行
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: immortalwrt  # 所有命令默认在此目录执行
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y dos2unix
-
-      - name: Normalize line endings and permissions
+      - name: Prepare environment
         run: |
-          cd immortalwrt
-          dos2unix build.sh docker-build.sh || true
-          chmod +x build.sh docker-build.sh
-          echo "=== 文件列表 ==="
-          ls -l
+          sed -i 's/\r$//' docker-build.sh build.sh || true
+          chmod +x docker-build.sh build.sh
+          mkdir -p bin files
+          sudo chmod -R 777 bin files
 
-      # ✅ 这里插入你的权限修复步骤
-      - name: Fix permissions before Docker build
-        run: |
-          cd immortalwrt
-          chmod -R 777 .
-          ls -ld .
+      - name: Pull ImmortalWRT ImageBuilder
+        run: docker pull immortalwrt/imagebuilder:armsr-armv8-openwrt-24.10  # 使用 armv8 镜像
 
-      # 🔽 然后再执行 Docker 构建
-      - name: Run Docker Build
-        run: |
-          cd immortalwrt
-          ./docker-build.sh
+      - name: Build firmware
+        run: ./docker-build.sh
 
-
-      - name: Package artifacts
-        run: |
-          mkdir -p output
-          cp -r immortalwrt/bin/* output/ || true
-          echo "Build finished at $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" > output/build_time.txt
-
-      - name: Upload build artifacts
+      - name: Upload artifacts (backup)
         uses: actions/upload-artifact@v4
         with:
-          name: immortalwrt-build
-          path: output/
+          name: immortalwrt-images
+          path: immortalwrt/bin/
 
-      - name: Delete old releases
-        uses: dev-drprasad/delete-older-releases@v0.3.3
+      # 计算北京时间（UTC+8）
+      - name: Get Beijing Time
+        id: time
+        run: |
+          export TZ=Asia/Shanghai
+          echo "datetime=$(date '+%Y-%m-%d %H:%M:%S %Z')" >> $GITHUB_OUTPUT
+
+      - name: List built files
+        id: list_files
+        run: |
+          echo "files=$(ls -1 bin/ | sed 's/^/  - /')" >> $GITHUB_OUTPUT
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
         with:
-          keep_latest: 1
-          delete_tags: true
+          tag_name: build-${{ github.run_number }}
+          name: "ImmortalWRT Firmware #${{ github.run_number }} — ${{ steps.time.outputs.datetime }}"
+          body: |
+            ✅ 自动构建固件完成！
+
+            - 分支：${{ github.ref_name }}
+            - 构建编号：${{ github.run_number }}
+            - 发布时间（北京时间）：${{ steps.time.outputs.datetime }}
+
+            以下为构建的固件文件：
+            ```bash
+            ${{ steps.list_files.outputs.files }}
+            ```
+          files: immortalwrt/bin/**
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      # 🧹 自动删除旧 Release，仅保留最新 1 个
+      - name: Clean up old releases
+        if: github.ref == 'refs/heads/main'
+        uses: dev-drprasad/delete-older-releases@v0.3.4
         with:
-          tag_name: release-${{ github.run_number }}
-          name: "ImmortalWrt Build #${{ github.run_number }} - $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M')"
-          body: |
-            Automated build of ImmortalWrt image.
-            - Build time (Beijing): $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
-            - Workflow run: ${{ github.run_id }}
-          files: |
-            output/**
+          keep_latest: 1
+          delete_tags: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
