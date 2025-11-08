@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euxo pipefail  # 启用调试和错误处理
+
+WORKDIR=$(pwd)
+
+# 使用 openwrt/imagebuilder:armsr-armv8 镜像
+docker run --rm \
+  --user root \
+  -v "$WORKDIR/bin:/home/build/openwrt-stable/bin" \
+  -v "$WORKDIR/files:/home/build/openwrt-stable/files" \
+  -v "$WORKDIR/openwrt/docker-build.sh:/home/build/openwrt-stable/docker-build.sh" \
+  openwrt/imagebuilder:armsr-armv8 \
+  /home/build/openwrt-stable/docker-build.sh  # 执行构建脚本
