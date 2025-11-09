@@ -58,7 +58,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: build-${{ github.run_number }}
-          name: "N1 OpenWrt{{ github.run_number }}"  # 固定标题
+          name: "N1 OpenWrt {{ github.run_number }}"  # 固定标题
           body: |
             ✅ N1 OpenWrt 固件自动构建完成！
 
