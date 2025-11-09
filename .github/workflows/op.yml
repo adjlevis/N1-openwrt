@@ -1,4 +1,4 @@
-name: N1 OpenWRT docker Build
+name: N1 OpenWRT Docker Build
 
 on:
   workflow_dispatch:
@@ -78,14 +78,14 @@ jobs:
             echo 'EOF'
           } >> $GITHUB_OUTPUT
 
-      - name: Publish to OpenWRT Release
+      - name: Publish to GitHub Release
         uses: softprops/action-gh-release@v2
         if: always()
         with:
           tag_name: N1-OpenWRT
           name: "N1 OpenWRT"
           body: |
-            ✅ N1 OpenWrt 固件自动构建完成！
+            ✅ N1 OpenWRT 固件自动构建完成！
 
             - 分支：${{ github.ref_name }}
             - 构建编号：${{ github.run_number }}
@@ -96,16 +96,18 @@ jobs:
             ${{ steps.list_files.outputs.files }}
             ```
           files: release/openwrt/**/*
-          overwrite: true
+          overwrite_files: true          # ✅ 正确字段（替代 overwrite）
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clean up old OpenWRT releases
         if: github.ref == 'refs/heads/main'
-        uses: dev-drprasad/delete-older-releases@v0.3.4
+        uses: dev-drprasad/delete-older-releases@v0.3.3
         with:
+          repo: ${{ github.repository }}
           keep_latest: 1
-          delete_tags: true
-          delete_pattern: N1-OpenWRT*
+          delete_tag_pattern: "N1-OpenWRT*"
+          delete_prerelease_only: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
