@@ -2,10 +2,10 @@ name: N1 ImmortalWRT docker Build
 
 on:
   push:
-    branches: [ main ]  # 仅在 main 分支推送时触发
-  workflow_dispatch:     # 允许手动触发
+    branches: [ main ]
+  workflow_dispatch:
   release:
-    types: [published]   # 当发布时触发
+    types: [published]
 
 jobs:
   build:
@@ -13,7 +13,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: immortalwrt  # ✅ 所有命令在该目录执行
+        working-directory: immortalwrt
 
     steps:
       - name: Checkout repository
@@ -21,18 +21,21 @@ jobs:
 
       - name: Prepare environment
         run: |
-          # 修正换行符并确保脚本可执行
           sed -i 's/\r$//' docker-build.sh build.sh || true
           chmod +x docker-build.sh build.sh
-          # 创建输出目录
           mkdir -p bin files
           sudo chmod -R 777 bin files
 
       - name: Pull ImmortalWRT ImageBuilder
-        run: docker pull immortalwrt/imagebuilder:armsr-armv8-openwrt-24.10  # ✅ 正确镜像
+        run: docker pull immortalwrt/imagebuilder:armsr-armv8-openwrt-24.10
 
       - name: Build firmware
-        run: ./docker-build.sh  # ✅ 执行构建脚本
+        run: ./docker-build.sh
+
+      - name: Package ImmortalWRT firmware
+        run: |
+          mkdir -p release/immortalwrt
+          cp -r bin/* release/immortalwrt/ || true
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -40,7 +43,6 @@ jobs:
           name: immortalwrt-images
           path: immortalwrt/bin/
 
-      # 🕒 获取北京时间（UTC+8）
       - name: Get Beijing Time
         id: time
         run: |
@@ -52,13 +54,12 @@ jobs:
         run: |
           echo "files=$(ls -1 bin/ | sed 's/^/  - /')" >> $GITHUB_OUTPUT
 
-      # 🚀 发布 Release
-      - name: Publish to GitHub Release
+      - name: Publish to Shared GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: build-${{ github.run_number }}  # ✅ 保留独立编号
-          name: "N1 ImmortalWrt"  # ✅ 固定标题
+          tag_name: N1-Firmware
+          name: "N1 Firmware Builds"
           body: |
             ✅ N1 ImmortalWrt 固件自动构建完成！
 
@@ -70,12 +71,11 @@ jobs:
             ```bash
             ${{ steps.list_files.outputs.files }}
             ```
-          files: immortalwrt/bin/**
-          overwrite_files: true
+          files: release/immortalwrt/**/*
+          append_body: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 🧹 清理旧版本，仅保留最近 1 个
       - name: Clean up old releases
         if: github.ref == 'refs/heads/main'
         uses: dev-drprasad/delete-older-releases@v0.3.4
